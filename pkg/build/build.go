@@ -429,14 +429,6 @@ func (b *Builder) run() error {
 // so that it can be used to create the Image.
 func (b *Builder) writeDockerfile(dir string) error {
 	var dockerfile = dockerfile.New(b.Build.Image)
-	dockerfile.WriteWorkdir(b.Repo.Dir)
-	dockerfile.WriteAdd("drone", "/usr/local/bin/")
-
-	// upload source code if repository is stored
-	// on the host machine
-	if b.Repo.IsRemote() == false {
-		dockerfile.WriteAdd("src", filepath.Join(b.Repo.Dir))
-	}
 
 	switch {
 	case strings.HasPrefix(b.Build.Image, "bradrydzewski/"),
@@ -459,20 +451,30 @@ func (b *Builder) writeDockerfile(dir string) error {
 	default:
 		// all other images are assumed to use
 		// the root user.
-		dockerfile.WriteUser("root")
-		dockerfile.WriteEnv("HOME", "/root")
+		dockerfile.WriteUser("drone")
+		dockerfile.WriteEnv("HOME", "/home/drone")
 		dockerfile.WriteEnv("LANG", "en_US.UTF-8")
 		dockerfile.WriteEnv("LANGUAGE", "en_US:en")
-		dockerfile.WriteEnv("LOGNAME", "root")
+		dockerfile.WriteEnv("LOGNAME", "drone")
 		dockerfile.WriteEnv("TERM", "xterm")
 		dockerfile.WriteEnv("SHELL", "/bin/bash")
 		dockerfile.WriteEnv("GOPATH", "/var/cache/drone")
-		dockerfile.WriteAdd("id_rsa", "/root/.ssh/id_rsa")
-		dockerfile.WriteRun("chmod 600 /root/.ssh/id_rsa")
-		dockerfile.WriteRun("echo 'StrictHostKeyChecking no' > /root/.ssh/config")
+		dockerfile.WriteRun("echo 'StrictHostKeyChecking no' > /home/drone/.ssh/config")
+		dockerfile.WriteAdd("id_rsa", "/home/drone/.ssh/id_rsa")
+		dockerfile.WriteRun("sudo chown drone:drone /home/drone/.ssh/id_rsa")
+		dockerfile.WriteRun("chmod 600 /home/drone/.ssh/id_rsa")
 	}
 
 	dockerfile.WriteAdd("proxy.sh", "/etc/drone.d/")
+	dockerfile.WriteWorkdir(b.Repo.Dir)
+	dockerfile.WriteAdd("drone", "/usr/local/bin/")
+	dockerfile.WriteRun("sudo chmod +x /usr/local/bin/drone")
+
+	// upload source code if repository is stored
+	// on the host machine
+	if b.Repo.IsRemote() == false {
+		dockerfile.WriteAdd("src", filepath.Join(b.Repo.Dir))
+	}
 	dockerfile.WriteEntrypoint("/bin/bash -e /usr/local/bin/drone")
 
 	// write the Dockerfile to the temporary directory
