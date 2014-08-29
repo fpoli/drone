@@ -168,3 +168,48 @@ func (h *CommitRebuildHandler) CommitRebuild(w http.ResponseWriter, r *http.Requ
 
 	return nil
 }
+
+// Cancel a specific built commit.
+func CommitCancel(w http.ResponseWriter, r *http.Request, u *User, repo *Repo) error {
+	hash := r.FormValue(":commit")
+	labl := r.FormValue(":label")
+	host := r.FormValue(":host")
+	branch := r.FormValue("branch")
+	if branch == "" {
+		branch = "master"
+	}
+
+	// get the commit from the database
+	commit, err := database.GetCommitBranchHash(branch, hash, repo.ID)
+	if err != nil {
+		return err
+	}
+
+	// get the builds from the database. a commit can have
+	// multiple sub-builds (or matrix builds)
+	builds, err := database.ListBuilds(commit.ID)
+	if err != nil {
+		return err
+	}
+
+	build := builds[0]
+
+	if labl != "" {
+		// get the specific build requested by the user. instead
+		// of a database round trip, we can just loop through the
+		// list and extract the requested build.
+		build = nil
+		for _, b := range builds {
+			if b.Slug == labl {
+				build = b
+				break
+			}
+		}
+	}
+
+	if build == nil {
+		return fmt.Errorf("Could not find build: %s", labl)
+	}
+
+	return fmt.Errorf("Not implemented (hash %s, labl %s, host %s, branch %s)", hash, labl, host, branch)
+}

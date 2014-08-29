@@ -27,7 +27,12 @@
 
       <div class="actions">
 				{{ if .IsAdmin }}
-					{{ if not .Build.IsRunning }}
+					{{ if .Build.IsRunning }}
+					<form action="/{{.Repo.Slug}}/commit/{{.Commit.Hash}}/cancel?branch={{ .Commit.Branch }}"
+								method="POST">
+						<input class="btn btn-danger" type="submit" value="Cancel Build"/>
+					</form>
+					{{ else }}
 					<form action="/{{.Repo.Slug}}/commit/{{.Commit.Hash}}/rebuild?branch={{ .Commit.Branch }}"
 								method="POST">
 						<input class="btn btn-default" type="submit" value="Rebuild"/>
