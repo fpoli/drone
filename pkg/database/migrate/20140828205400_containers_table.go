@@ -9,17 +9,14 @@ func (r *rev20140828205400) Revision() int64 {
 }
 
 func (r *rev20140828205400) Up(mg *MigrationDriver) error {
-    if _, err := mg.CreateTable("containers", []string{
-        t.Integer("build_id", PRIMARYKEY),
-        t.Blob("containers"),
-    }); err != nil {
-        return err
-    }
-
+    _, err := mg.CreateTable("containers", []string{
+        mg.T.Integer("build_id", PRIMARYKEY),
+        mg.T.Blob("containers"),
+    });
+    return err
 }
 
 func (r *rev20140828205400) Down(mg *MigrationDriver) error {
-    if _, err := mg.DropTable("containers"); err != nil {
-        return err
-    }
+    _, err := mg.DropTable("containers");
+    return err
 }
