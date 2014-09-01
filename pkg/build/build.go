@@ -17,6 +17,8 @@ import (
 	"github.com/drone/drone/pkg/build/proxy"
 	"github.com/drone/drone/pkg/build/repo"
 	"github.com/drone/drone/pkg/build/script"
+	"github.com/drone/drone/pkg/database"
+	. "github.com/drone/drone/pkg/model"
 )
 
 // BuildState stores information about a build
@@ -313,6 +315,11 @@ func (b *Builder) teardown() error {
 		}
 	}
 
+	// remove the container id from the database
+	if err := database.DeleteContainer(b.Build.ID); err != nil {
+		log.Errf("failed to remove the container from the database for build %s. %s", b.Build.ID, err.Error())
+	}
+
 	return nil
 }
 
@@ -394,6 +401,14 @@ func (b *Builder) run() error {
 
 	// cache instance of docker.Run
 	b.container = run
+
+	// persist the container id to the database
+	if err := database.SaveContainer(Container{
+		BuildID: b.Build.ID,
+		Containers: run.ID,
+	}); err != nil {
+		return err
+	}
 
 	// attach to the container
 	go func() {
