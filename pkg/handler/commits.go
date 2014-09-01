@@ -4,11 +4,13 @@ import (
 	"fmt"
 	"net/http"
 	"time"
+	"strings"
 
 	"github.com/drone/drone/pkg/channel"
 	"github.com/drone/drone/pkg/database"
 	. "github.com/drone/drone/pkg/model"
 	"github.com/drone/drone/pkg/queue"
+	"github.com/drone/drone/pkg/build/docker"
 )
 
 // Display a specific Commit.
@@ -169,12 +171,22 @@ func (h *CommitRebuildHandler) CommitRebuild(w http.ResponseWriter, r *http.Requ
 	return nil
 }
 
+type CommitCancelHandler struct {
+	dockerClient *docker.Client
+}
+
+func NewCommitCancelHandler(dockerClient *docker.Client) *CommitCancelHandler {
+	return &CommitCancelHandler{
+		dockerClient: dockerClient,
+	}
+}
+
 // Cancel a specific built commit.
-func CommitCancel(w http.ResponseWriter, r *http.Request, u *User, repo *Repo) error {
+func (h *CommitCancelHandler) CommitCancel(w http.ResponseWriter, r *http.Request, u *User, repo *Repo) error {
 	hash := r.FormValue(":commit")
 	labl := r.FormValue(":label")
-	host := r.FormValue(":host")
 	branch := r.FormValue("branch")
+	host := r.FormValue(":host")
 	if branch == "" {
 		branch = "master"
 	}
@@ -211,5 +223,35 @@ func CommitCancel(w http.ResponseWriter, r *http.Request, u *User, repo *Repo) e
 		return fmt.Errorf("Could not find build: %s", labl)
 	}
 
-	return fmt.Errorf("Not implemented (hash %s, labl %s, host %s, branch %s)", hash, labl, host, branch)
+	// get the container from the database
+	container, err := database.GetContainer(build.ID)
+	if err != nil {
+		return err
+	}
+
+	if build == nil {
+		return fmt.Errorf("Could not find containers for build %s", build.ID)
+	}
+
+	container_ids := strings.Split(container.Containers, ",")
+
+	// stop the containers
+	err_containers := []string{}
+	for _, id := range container_ids {
+		if err := h.dockerClient.Containers.Stop(id, 10); err != nil {
+			err_containers = append(err_containers, id)
+		}
+	}
+
+	if len(err_containers) != 0 {
+		return fmt.Errorf("Failed to stop container %s", strings.Join(err_containers, ", "))
+	}
+
+	if labl != "" {
+		http.Redirect(w, r, fmt.Sprintf("/%s/%s/%s/commit/%s/build/%s?branch=%s", host, repo.Owner, repo.Name, hash, labl, branch), http.StatusSeeOther)
+	} else {
+		http.Redirect(w, r, fmt.Sprintf("/%s/%s/%s/commit/%s?branch=%s", host, repo.Owner, repo.Name, hash, branch), http.StatusSeeOther)
+	}
+
+	return nil
 }

@@ -129,14 +129,16 @@ func setupStatic() {
 
 // setup routes for serving dynamic content.
 func setupHandlers() {
-	queueRunner := queue.NewBuildRunner(docker.New(), timeout)
+	dockerClient := docker.New()
+	queueRunner := queue.NewBuildRunner(dockerClient, timeout)
 	queue := queue.Start(workers, queueRunner)
 
 	var (
-		github    = handler.NewGithubHandler(queue)
-		gitlab    = handler.NewGitlabHandler(queue)
-		bitbucket = handler.NewBitbucketHandler(queue)
-		rebuild   = handler.NewCommitRebuildHandler(queue)
+		github      = handler.NewGithubHandler(queue)
+		gitlab      = handler.NewGitlabHandler(queue)
+		bitbucket   = handler.NewBitbucketHandler(queue)
+		rebuild     = handler.NewCommitRebuildHandler(queue)
+		cancelBuild = handler.NewCommitCancelHandler(dockerClient)
 	)
 
 	m := pat.New()
@@ -229,10 +231,10 @@ func setupHandlers() {
 	m.Get("/:host/:owner/:name/commit/:commit/build/:label/out.txt", handler.RepoHandler(handler.BuildOut))
 	m.Get("/:host/:owner/:name/commit/:commit/build/:label/status.json", handler.PublicHandler(handler.BuildStatus))
 	m.Post("/:host/:owner/:name/commit/:commit/build/:label/rebuild", handler.RepoAdminHandler(rebuild.CommitRebuild))
-	m.Post("/:host/:owner/:name/commit/:commit/build/:label/cancel", handler.RepoAdminHandler(handler.CommitCancel))
+	m.Post("/:host/:owner/:name/commit/:commit/build/:label/cancel", handler.RepoAdminHandler(cancelBuild.CommitCancel))
 	m.Get("/:host/:owner/:name/commit/:commit/build/:label", handler.RepoHandler(handler.CommitShow))
 	m.Post("/:host/:owner/:name/commit/:commit/rebuild", handler.RepoAdminHandler(rebuild.CommitRebuild))
-	m.Post("/:host/:owner/:name/commit/:commit/cancel", handler.RepoAdminHandler(handler.CommitCancel))
+	m.Post("/:host/:owner/:name/commit/:commit/cancel", handler.RepoAdminHandler(cancelBuild.CommitCancel))
 	m.Get("/:host/:owner/:name/commit/:commit", handler.RepoHandler(handler.CommitShow))
 	m.Get("/:host/:owner/:name/tree", handler.RepoHandler(handler.RepoDashboard))
 	m.Get("/:host/:owner/:name/status.svg", handler.ErrorHandler(handler.Badge))
